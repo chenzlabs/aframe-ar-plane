@@ -27,7 +27,8 @@
         <a-entity id="ar-world"></a-entity>
         
         <!-- Declare a cursor, and what objects its raycaster hit (including AR). -->
-        <a-cursor raycaster="objects:.plane; near:0.01" 
+        <a-cursor fuse="false" 
+                  raycaster="objects:.plane; near:0.01" 
                   ar-raycaster="el:#ar-world"></a-cursor>
 
         <!-- Heads-up text display. -->
@@ -67,7 +68,8 @@
         plane.setAttribute('width', evt.detail.extent.x);
         plane.setAttribute('depth', evt.detail.extent.z);
         plane.setAttribute('position', evt.detail.position);
-        plane.setAttribute('rotation', evt.detail.rotation);
+        var rotation = new THREE.Vector3().copy(evt.detail.rotation);
+        plane.setAttribute('rotation', rotation);
         // Currently, scale is always 1... 
         // plane.setAttribute('scale', evt.detail.scale);
         
@@ -148,9 +150,24 @@
         var tempScale = new THREE.Vector3();
         var tempMat4 = new THREE.Matrix4();
         
-        // Show plane info on click.
-        // may not have arDisplay until tick after loaded
         window.addEventListener('click', function() {
+          // If the cursor has an intersection, place a marker.
+          var cursor = sc.querySelector('[ar-raycaster]').components.cursor;
+          if (cursor.intersection) {
+            var marker = document.createElement('a-box');
+            marker.setAttribute('width', 0.01);
+            marker.setAttribute('depth', 0.01);
+            marker.setAttribute('height', 1);
+            marker.setAttribute('color', 'orange');
+            marker.setAttribute('position', {
+              x: cursor.intersection.point.x, 
+              y: cursor.intersection.point.y + 0.5, 
+              z: cursor.intersection.point.z});
+            sc.appendChild(marker);
+          }
+          
+          // Show plane info on click.
+          // (may not have arDisplay until tick after loaded)
           var ardisplay = sc.components['three-ar'].arDisplay;
           if (!ardisplay) { showHUD('no ardisplay?'); } else {
             var planes = ardisplay.getPlanes ? ardisplay.getPlanes() : ardisplay.anchors_;
