@@ -7,6 +7,7 @@
     <script src="https://aframe.io/releases/0.6.1/aframe.min.js"></script>
     <script src="https://rawgit.com/google-ar/three.ar.js/master/dist/three.ar.js"></script>
     <script src="https://rawgit.com/chenzlabs/aframe-ar/experimental-planes/dist/aframe-ar.js"></script>
+    <script src="grid-shader.js"></script>
   </head>
   <body>    
     <script>
@@ -18,16 +19,44 @@
       });            
     </script>
     
+    <script>
+AFRAME.registerGeometry('polygon', {
+  schema: {
+    stride: { default: 3 },
+    vertices: { default: [-1,1,0, -1,-1,0, 1,-1,0, 1,0.5,0] }
+  },
+  
+  init: function (data) {
+    var geometry = new THREE.Geometry();
+    var i;
+    for (i = 0; (i+2) < data.vertices.length; i += data.stride) {
+      geometry.vertices.push(new THREE.Vector3(data.vertices[i], data.vertices[i+1], data.vertices[i+2]));
+    }
+    geometry.computeBoundingBox();
+    // generate faces - this makes a triangle fan, from the first +Y point around
+    for (i = 0; i < geometry.vertices.length - 2; i++)
+    {
+      geometry.faces.push(new THREE.Face3(0, i + 1, i + 2));
+    }
+    geometry.mergeVertices();
+    geometry.computeFaceNormals();
+    geometry.computeVertexNormals();
+    this.geometry = geometry;
+  }
+});      
+    </script>
+    
     <a-scene ar>
       <!-- When we have a raycaster hit, we use this ball to show where. -->
       <a-sphere id="ball" radius="0.01" position="0 0.005 -0.5"></a-sphere>
-        
+
       <a-camera>
         <!-- A hit from AR, rather than A-Frame objects, hits this entity. -->
         <a-entity id="ar-world"></a-entity>
         
         <!-- Declare a cursor, and what objects its raycaster hit (including AR). -->
-        <a-cursor raycaster="objects:.plane; near:0.01" 
+        <a-cursor fuse="false" 
+                  raycaster="objects:.plane; near:0.01" 
                   ar-raycaster="el:#ar-world"></a-cursor>
 
         <!-- Heads-up text display. -->
@@ -42,40 +71,73 @@
       var sc = document.querySelector('a-scene');
       function showHUD(msg) { sc.querySelector('#hud').setAttribute('value', msg); }
       
+      var randomColors = ['red', 'orange', /* 'yellow', */ 'green', 'blue', 'violet'];
       function onCreateOrUpdatePlane(evt) {
         var created = false;
         var plane = sc.querySelector('#plane_' + evt.detail.id);
+        
+        var colorToUse;
         if (!plane) {
           // Create and append the plane.
           created = true;
-          plane = document.createElement('a-box');
+          colorToUse = randomColors[Math.floor(Math.random() * randomColors.length)];
+          plane = document.createElement('a-entity');
           plane.setAttribute('id', 'plane_' + evt.detail.id);
           plane.setAttribute('class', 'plane');
-          plane.setAttribute('color', 'red');
-          plane.setAttribute('opacity', 0.2);
-          plane.setAttribute('height', 0.001);
+          plane.setAttribute('material', 'shader:grid;interval:0.1;side:double;opacity:0.2;color:' + colorToUse);
           sc.appendChild(plane);
           
           plane.insertAdjacentHTML('beforeend',
             // Add a plane label (which needs to be rotated to match a-box).
             '<a-entity class="label" rotation="-90 0 0"></a-entity>' +
+            // Add bounding box.
+            '<a-box class="bbox" height="0" material="wireframe:true; color:' + colorToUse + '"></a-box>' +
             // Add a thing to mark the center of the plane.
             '<a-entity thing></a-entity>');
+        } else {
+          colorToUse = plane.getAttribute('material', 'color');
         }
         
         // Update the plane.
-        plane.setAttribute('width', evt.detail.extent.x);
-        plane.setAttribute('depth', evt.detail.extent.z);
         plane.setAttribute('position', evt.detail.position);
-        plane.setAttribute('rotation', evt.detail.rotation);
+        var rotation = new THREE.Vector3().copy(evt.detail.rotation);    
+/* 
+this should now be done in aframe-ar... until no longer required...
+
+        if (navigator.userAgent.indexOf('Android') >= 0) {
+          // HACK for current draft APK -- Z->Y, Y->X, X->Z...
+          var temp = rotation.y;
+          rotation.y = rotation.z;
+          rotation.z = rotation.x;
+          rotation.x = temp;
+        }
+*/        
+        plane.setAttribute('rotation', rotation);
         // Currently, scale is always 1... 
         // plane.setAttribute('scale', evt.detail.scale);
+
+        // If we have vertices, use polygon geometry
+        if (evt.detail.vertices) {
+          plane.setAttribute('geometry', 'primitive:polygon; vertices:' + evt.detail.vertices.join(','));
+          // fails... plane.setAttribute('geometry', {primitive:'polygon', vertices: evt.detail.vertices});
+        } else {
+          plane.setAttribute('geometry', 'primitive:box; width:' + evt.detail.extent.x +
+                                         '; height:0; depth:' + evt.detail.extent.z);        
+        }
         
+        // Update the bounding box.
+        var dx2 = evt.detail.extent.x / 2.0;
+        var dz2 = evt.detail.extent.z / 2.0;
+        var bbox = plane.querySelector('.bbox');
+        bbox.setAttribute('width', evt.detail.extent.x);
+        bbox.setAttribute('depth', evt.detail.extent.z);
+
         // Fill out the plane label with informative text.
         // DETAIL: when creating, getAttribute doesn't work this tick
         plane.querySelector('.label').setAttribute('text', {
          width: evt.detail.extent.x, 
          height: evt.detail.extent.z, 
+         color: 'gray',
          align: 'left',
          zOffset: 0.01,
          wrapCount: 100, value: 
@@ -148,9 +210,24 @@
         var tempScale = new THREE.Vector3();
         var tempMat4 = new THREE.Matrix4();
         
-        // Show plane info on click.
-        // may not have arDisplay until tick after loaded
         window.addEventListener('click', function() {
+          // If the cursor has an intersection, place a marker.
+          var cursor = sc.querySelector('[ar-raycaster]').components.cursor;
+          if (cursor.intersection) {
+            var marker = document.createElement('a-box');
+            marker.setAttribute('width', 0.01);
+            marker.setAttribute('depth', 0.01);
+            marker.setAttribute('height', 1);
+            marker.setAttribute('color', 'orange');
+            marker.setAttribute('position', {
+              x: cursor.intersection.point.x, 
+              y: cursor.intersection.point.y + 0.5, 
+              z: cursor.intersection.point.z});
+            sc.appendChild(marker);
+          }
+          
+          // Show plane info on click.
+          // (may not have arDisplay until tick after loaded)
           var ardisplay = sc.components['three-ar'].arDisplay;
           if (!ardisplay) { showHUD('no ardisplay?'); } else {
             var planes = ardisplay.getPlanes ? ardisplay.getPlanes() : ardisplay.anchors_;
@@ -178,27 +255,57 @@
                 plane.quaternion.fromArray(plane.orientation);
               }
               plane.rotation.setFromQuaternion(plane.quaternion);
+              
+              if (navigator.userAgent.indexOf('Android') >= 0) {
+                // HACK for current draft APK -- Z->Y, Y->X, X->Z...
+                var temp = plane.rotation.x;
+                plane.rotation.y = plane.rotation.z;
+                plane.rotation.z = plane.rotation.x;
+                plane.rotation.x = temp;
+              }
+              
               if (plane.rotation.x) { plane.rotation.x *= THREE.Math.RAD2DEG; }
               if (plane.rotation.y) { plane.rotation.y *= THREE.Math.RAD2DEG; }
               if (plane.rotation.z) { plane.rotation.z *= THREE.Math.RAD2DEG; }
             });
-              
-            var msg = planes.length + '(vs. ' + Object.keys(sc.components['three-ar-planes'].planes).join(',') + '):\n\n';
+
+            var keys = Object.keys(sc.components['three-ar-planes'].planes);
+            var msg = planes.length + ' (vs. ' + keys.length + ': ' + keys.join(',') + ')\n\n';
             planes.forEach(function (plane) {              
               // Write out what we got, for debugging.
               msg += 
               'identifier: ' + plane.identifier + '' + // string, per latest spec
               ' ' + JSON.stringify(plane.vector3) + '' + // unified to THREE.Vector3
               ' ' + JSON.stringify(plane.rotation) + '' + // unified to THREE.Quaternion
-              ' ' + plane.extent + '' + // number[2], per latest spec
-              //'vertices: ' + plane.vertices + '\n' + // number[3*n], per latest spec
-              '\n';
+              ' ' + plane.extent + '\n' + // number[2], per latest spec
+              (plane.vertices ? ('vertices: ' + plane.vertices.length + '\n') : '') + // number[3*n], per latest spec
+              '';
             });
             showHUD(msg);
           }
         });
         
-        addEventListeners(); 
+        addEventListeners();
+/* mock        
+        onCreateOrUpdatePlane(new CustomEvent('createplane', {detail: {
+          id: 'bogus',
+          position: {x:0, y:0, z:-2},
+          rotation: {x:0, y:0, z:0},
+          extent: {x:2, y:0, z:1},
+          scale: {x:1, y:1, z:1},
+          alignment: 0
+        }}));
+        setTimeout(function() {
+          onCreateOrUpdatePlane(new CustomEvent('updateplane', {detail: {
+            id: 'bogus',
+            position: {x:0, y:0, z:-2.5},
+            rotation: {x:0, y:0, z:0},
+            extent: {x:3, y:0, z:2},
+            scale: {x:1, y:1, z:1},
+            alignment: 0
+          }}));          
+        });
+*/        
       }
       
       if (sc.hasLoaded) { onSceneLoaded(); }
