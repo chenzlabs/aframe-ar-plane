@@ -1,0 +1,233 @@
+<!--
+/*
+ * Copyright 2017 Google Inc. All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    // Catch any possible error and show an alert.
+    // Useful for "hacky" debugging.
+    window.addEventListener('error', function(event) {
+      var errorMessage = event.message;
+      var url = event.filename;
+      var lineNumber = event.lineno;
+      var columnNumber = event.colno;
+      alert("ERROR: " + errorMessage + " at " + url + " : " + lineNumber +
+            " : " + columnNumber);
+    });
+  </script>
+  <title>WebAR - ThreeJS Reticle Example</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no,
+  minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+    body {
+      font-family: Monospace;
+      margin: 0px;
+      overflow: hidden;
+    }
+    #info {
+      color: #fff;
+      position: absolute;
+      bottom: 10px;
+      width: 100%;
+      text-align: center;
+      z-index: 100;
+      display:block;
+    }
+    a {
+      color: skyblue
+    }
+  </style>
+</head>
+<body>
+<div id="info"> WebAR - ThreeJS Reticle Example
+  <a href="http://www.syedrezaali.com"> Reza Ali</a>
+</div>
+<script src="https://rawgit.com/google-ar/three.ar.js/master/third_party/three.js/three.js"></script>
+<script src="https://rawgit.com/google-ar/three.ar.js/master/third_party/three.js/VRControls.js"></script>
+<script src="https://rawgit.com/google-ar/three.ar.js/master/dist/three.ar.js"></script>
+<script id="fragmentShader" type="shader">
+precision mediump float;
+precision mediump int;
+
+varying vec3 vPosition;
+varying vec3 vColor;
+varying vec3 vCameraPosition;
+
+void main() {
+  float dist = 1.0 / length(vCameraPosition - vPosition);
+  vec4 color = vec4(vColor * dist, 0.9);
+  gl_FragColor = color;
+}
+</script>
+<script id="vertexShader" type="shader">
+  uniform mat4 modelViewMatrix;
+  uniform mat4 projectionMatrix;
+  uniform vec3 cameraPosition;
+  uniform vec3 color;
+
+  attribute vec3 position;
+
+  varying vec3 vPosition;
+  varying vec3 vColor;
+  varying vec3 vCameraPosition;
+
+  void main()
+  {
+      vPosition = position;
+      vColor = color;
+      vCameraPosition = cameraPosition;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+
+</script>
+<script>
+
+  var vrDisplay;
+  var vrFrameData;
+  var vrControls;
+  var arView;
+
+  var canvas;
+  var camera;
+  var scene;
+  var renderer;
+
+  var reticle;
+
+  THREE.ARUtils.getARDisplay().then(function (display) {
+    if (display) {
+      vrDisplay = display;
+      init();
+    } else {
+      THREE.ARUtils.displayUnsupportedMessage();
+    }
+  });
+
+  function init() {
+    vrFrameData = new VRFrameData();
+    renderer = new THREE.WebGLRenderer({ alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.autoClear = false;
+
+    canvas = renderer.domElement;
+    document.body.appendChild(canvas);
+
+    arView = new THREE.ARView(vrDisplay, renderer);
+
+    camera = new THREE.ARPerspectiveCamera(vrDisplay, 60, window.innerWidth / window.innerHeight, 0.01, 100);
+    scene = new THREE.Scene();
+
+    reticle = new THREE.ARReticle(vrDisplay, 0.025, 0.030, 0xff0077, 0.25);
+    scene.add(reticle);
+
+    vrControls = new THREE.VRControls(camera);
+
+    window.setInterval(() => {
+      for (var i = 0; i < planes.length; i++) {
+      var plane = planes[i];
+      scene.remove(plane);
+    }
+    planes.length = 0;
+    updatePlanes();
+  }, 500);
+
+  window.addEventListener('resize', onWindowResize, false);
+  update();
+  }
+
+  var colors = [];
+  var planes = [];
+  function updatePlanes() {
+    var ps = vrDisplay.getPlanes();
+    for (var i = 0; i < ps.length; i++) {
+      var anchor = ps[i];
+      if (anchor.vertices.length == 0) {
+        continue;
+      }
+
+      var planeObj = new THREE.Object3D();
+      planeObj.position.set(anchor.position[0], anchor.position[1] - 0.05, anchor.position[2]);
+      planeObj.quaternion.set(anchor.orientation[0], anchor.orientation[1], anchor.orientation[2], anchor.orientation[3]);
+      scene.add(planeObj);
+      planes.push(planeObj);
+
+      var geo = new THREE.Geometry();
+      // generate vertices
+      for (var pt = 0 ; pt < anchor.vertices.length / 3; pt++)
+      {
+        geo.vertices.push(new THREE.Vector3(anchor.vertices[pt * 3], anchor.vertices[(pt * 3) + 1], anchor.vertices[(pt * 3) + 2]));
+      }
+
+      // generate faces
+      for (var face = 0; face < geo.vertices.length - 2; face++)
+      {
+        // this makes a triangle fan, from the first +Y point around
+        geo.faces.push(new THREE.Face3(0, face + 1, face + 2));
+      }
+
+      if (!colors[i]) {
+        colors[i] = new THREE.Color(Math.random() * 0xffffff);
+      }
+
+      var plane = new THREE.Mesh(geo, new THREE.RawShaderMaterial(
+                                     {
+                                       vertexShader: document.getElementById( 'vertexShader' ).textContent,
+                                       fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
+                                       side: THREE.DoubleSide,
+                                       transparent:true,
+                                       uniforms: {
+                                         color: { type: "c", value: colors[i] }
+                                       }
+                                     })
+      );
+
+      planeObj.add(plane);
+
+      var bb = new THREE.Mesh(new THREE.PlaneBufferGeometry(anchor.extent[0], anchor.extent[1]), new THREE.MeshBasicMaterial({side: THREE.DoubleSide, color: 0xff0000}))
+      bb.geometry.rotateX(3.1415 / 2.0);
+      bb.position.set(anchor.center[0], -0.1, anchor.center[1]);
+      planeObj.add(bb);
+    }
+  }
+
+  function update() {
+    arView.render();
+
+    if (vrDisplay) {
+      vrDisplay.getFrameData(vrFrameData);
+    }
+
+    reticle.update(0.5, 0.5);
+
+    vrControls.update();
+
+    renderer.clearDepth();
+    renderer.render(scene, camera);
+    requestAnimationFrame(update);
+  }
+
+  function onWindowResize () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+</script>
+</body>
+</html>
