@@ -49,10 +49,7 @@ AFRAME.registerGeometry('polygon', {
     <a-scene ar>
       <!-- When we have a raycaster hit, we use this ball to show where. -->
       <a-sphere id="ball" radius="0.01" position="0 0.005 -0.5"></a-sphere>
-<!--
-      <a-entity position="0 -0.1 -2" geometry="primitive:polygon" 
-                material="shader:grid;color:blue;interval:0.1;side:double"></a-entity>
--->      
+
       <a-camera>
         <!-- A hit from AR, rather than A-Frame objects, hits this entity. -->
         <a-entity id="ar-world"></a-entity>
@@ -90,12 +87,6 @@ AFRAME.registerGeometry('polygon', {
           plane.setAttribute('material', 'shader:grid;interval:0.1;side:double;opacity:0.2;color:' + colorToUse);
           sc.appendChild(plane);
           
-          // Add lines for bounding box.
-          plane.setAttribute('line__1', {color: colorToUse});
-          plane.setAttribute('line__2', {color: colorToUse});
-          plane.setAttribute('line__3', {color: colorToUse});
-          plane.setAttribute('line__4', {color: colorToUse});
-          
           plane.insertAdjacentHTML('beforeend',
             // Add a plane label (which needs to be rotated to match a-box).
             '<a-entity class="label" rotation="-90 0 0"></a-entity>' +
@@ -109,7 +100,10 @@ AFRAME.registerGeometry('polygon', {
         
         // Update the plane.
         plane.setAttribute('position', evt.detail.position);
-        var rotation = new THREE.Vector3().copy(evt.detail.rotation);        
+        var rotation = new THREE.Vector3().copy(evt.detail.rotation);    
+/* 
+this should now be done in aframe-ar... until no longer required...
+
         if (navigator.userAgent.indexOf('Android') >= 0) {
           // HACK for current draft APK -- Z->Y, Y->X, X->Z...
           var temp = rotation.y;
@@ -117,6 +111,7 @@ AFRAME.registerGeometry('polygon', {
           rotation.z = rotation.x;
           rotation.x = temp;
         }
+*/        
         plane.setAttribute('rotation', rotation);
         // Currently, scale is always 1... 
         // plane.setAttribute('scale', evt.detail.scale);
@@ -273,24 +268,25 @@ AFRAME.registerGeometry('polygon', {
               if (plane.rotation.y) { plane.rotation.y *= THREE.Math.RAD2DEG; }
               if (plane.rotation.z) { plane.rotation.z *= THREE.Math.RAD2DEG; }
             });
-              
-            var msg = planes.length + '(vs. ' + Object.keys(sc.components['three-ar-planes'].planes).join(',') + '):\n\n';
+
+            var keys = Object.keys(sc.components['three-ar-planes'].planes);
+            var msg = planes.length + ' (vs. ' + keys.length + ': ' + keys.join(',') + ')\n\n';
             planes.forEach(function (plane) {              
               // Write out what we got, for debugging.
               msg += 
               'identifier: ' + plane.identifier + '' + // string, per latest spec
               ' ' + JSON.stringify(plane.vector3) + '' + // unified to THREE.Vector3
               ' ' + JSON.stringify(plane.rotation) + '' + // unified to THREE.Quaternion
-              ' ' + plane.extent + '' + // number[2], per latest spec
-              //'vertices: ' + plane.vertices + '\n' + // number[3*n], per latest spec
-              '\n';
+              ' ' + plane.extent + '\n' + // number[2], per latest spec
+              (plane.vertices ? ('vertices: ' + plane.vertices.length + '\n') : '') + // number[3*n], per latest spec
+              '';
             });
             showHUD(msg);
           }
         });
         
         addEventListeners();
-        
+/* mock        
         onCreateOrUpdatePlane(new CustomEvent('createplane', {detail: {
           id: 'bogus',
           position: {x:0, y:0, z:-2},
@@ -309,6 +305,7 @@ AFRAME.registerGeometry('polygon', {
             alignment: 0
           }}));          
         });
+*/        
       }
       
       if (sc.hasLoaded) { onSceneLoaded(); }
