@@ -56,7 +56,7 @@ AFRAME.registerGeometry('polygon', {
         
         <!-- Declare a cursor, and what objects its raycaster hit (including AR). -->
         <a-cursor fuse="false" 
-                  raycaster="objects:.plane; near:0.01" 
+                  raycaster="objects:.plane; near:0.001" 
                   ar-raycaster="el:#ar-world"></a-cursor>
 
         <!-- Heads-up text display. -->
@@ -84,14 +84,14 @@ AFRAME.registerGeometry('polygon', {
           plane = document.createElement('a-entity');
           plane.setAttribute('id', 'plane_' + evt.detail.id);
           plane.setAttribute('class', 'plane');
-          plane.setAttribute('material', 'shader:grid;interval:0.1;side:double;opacity:0.2;color:' + colorToUse);
+          plane.setAttribute('material', 'shader:grid;interval:0.1;side:double;opacity:0.3;color:' + colorToUse);
           sc.appendChild(plane);
           
           plane.insertAdjacentHTML('beforeend',
             // Add a plane label (which needs to be rotated to match a-box).
             '<a-entity class="label" rotation="-90 0 0"></a-entity>' +
             // Add bounding box.
-            '<a-box class="bbox" height="0" material="wireframe:true; color:' + colorToUse + '"></a-box>' +
+            '<a-box class="bbox" position="0 -0.001 0" height="0" material="wireframe:true; color:' + colorToUse + '"></a-box>' +
             // Add a thing to mark the center of the plane.
             '<a-entity thing></a-entity>');
         } else {
@@ -122,7 +122,7 @@ this should now be done in aframe-ar... until no longer required...
           // fails... plane.setAttribute('geometry', {primitive:'polygon', vertices: evt.detail.vertices});
         } else {
           plane.setAttribute('geometry', 'primitive:box; width:' + evt.detail.extent.x +
-                                         '; height:0; depth:' + evt.detail.extent.z);        
+                                         '; height:0.001; depth:' + evt.detail.extent.z);        
         }
         
         // Update the bounding box.
@@ -189,14 +189,14 @@ this should now be done in aframe-ar... until no longer required...
           var point = evt.detail.intersections[0].point;
           var el = evt.detail.els[0];
           showHUD('raycaster-intersection\n' + JSON.stringify(point) + '\n' + el.outerHTML);
-          if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 0.5); }
+          if (el.getAttribute('class') === 'plane') { el.setAttribute('material', {shader:'flat',opacity: 0.5}); }
           ball.setAttribute('position', point);
           ball.setAttribute('visible', true);
         });
         raycaster.addEventListener('raycaster-intersection-cleared', function (evt) {
           var el = evt.detail.el;
           showHUD('raycaster-intersection-cleared\n' + el.outerHTML);
-          if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 0.2); }
+          if (el.getAttribute('class') === 'plane') { el.setAttribute('material', {shader:'grid',opacity: 0.3}); }
           ball.setAttribute('visible', false);
         });
       }
