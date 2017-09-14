@@ -8,6 +8,9 @@
     <script src="https://rawgit.com/google-ar/three.ar.js/master/dist/three.ar.js"></script>
     <script src="https://rawgit.com/chenzlabs/aframe-ar/experimental-planes/dist/aframe-ar.js"></script>
     <script src="grid-shader.js"></script>
+    
+    <!-- Prevent touch causing flicker on iOS. -->
+    <style> * { -webkit-tap-highlight-color: rgba(0,0,0,0); } </style>    
   </head>
   <body>    
     <script>
