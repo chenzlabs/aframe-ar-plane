@@ -116,10 +116,10 @@ AFRAME.registerGeometry('polygon', {
             sc.appendChild(plane);
 
             plane.insertAdjacentHTML('beforeend',                   
-                                     
+/*                                     
               // Add a plane label (which needs to be rotated to match a-box).
               '<a-entity class="label" rotation="-90 0 0"></a-entity>' +             
-              
+*/              
               // Add bounding box.
               '<a-box class="bbox" position="0 0 0" height="0" material="wireframe:true;opacity:0.5;color:' + colorToUse + '"></a-box>' +
               // Add a thing to mark the center of the plane.
@@ -162,7 +162,7 @@ AFRAME.registerGeometry('polygon', {
           var bbox = plane.querySelector('.bbox');
           bbox.setAttribute('width', dx);
           bbox.setAttribute('depth', dz);
- 
+/*  
           // Fill out the plane label with informative text.
           // DETAIL: when creating, getAttribute doesn't work this tick
           plane.querySelector('.label').setAttribute('text', {
@@ -186,7 +186,7 @@ AFRAME.registerGeometry('polygon', {
           //+ '\nscale y: ' + plane.getAttribute('scale').y
           //+ '\nscale z: ' + plane.getAttribute('scale').z
           });
-       
+*/          
           // We updated the plane (or added it), so update the raycaster.
           // Because there may be a DOM change, we need to wait a tick.
           if (created) { setTimeout(raycasterNeedsUpdate); } else { raycasterNeedsUpdate(); }
@@ -253,7 +253,33 @@ AFRAME.registerGeometry('polygon', {
               x: cursor.intersection.point.x, 
               y: cursor.intersection.point.y + 0.5, 
               z: cursor.intersection.point.z});
-            sc.appendChild(marker);         
+            sc.appendChild(marker);
+/*            
+            var cursorworldpos = new THREE.Vector3();
+            cursor.el.object3D.getWorldPosition(cursorworldpos);
+            
+            marker = document.createElement('a-box');
+            marker.setAttribute('width', 0.01);
+            marker.setAttribute('depth', 0.01);
+            marker.setAttribute('height', 1);
+            marker.setAttribute('color', 'green');
+            marker.setAttribute('position', {
+              x: cursor.intersection.point.x + cursorworldpos.x, 
+              y: cursor.intersection.point.y + cursorworldpos.y + 0.5, 
+              z: cursor.intersection.point.z + cursorworldpos.z });
+            sc.appendChild(marker);
+            
+            marker = document.createElement('a-box');
+            marker.setAttribute('width', 0.01);
+            marker.setAttribute('depth', 0.01);
+            marker.setAttribute('height', 1);
+            marker.setAttribute('color', 'red');
+            marker.setAttribute('position', {
+              x: cursor.intersection.point.x - cursorworldpos.x, 
+              y: cursor.intersection.point.y - cursorworldpos.y + 0.5, 
+              z: cursor.intersection.point.z - cursorworldpos.z });
+            sc.appendChild(marker);
+*/            
           }
           
           // Show plane info on click.
@@ -261,7 +287,7 @@ AFRAME.registerGeometry('polygon', {
           var ardisplay = sc.components['three-ar'].arDisplay;
           if (!ardisplay) { showHUD('no ardisplay?'); } else {
             var planes = ardisplay.getPlanes ? ardisplay.getPlanes() : ardisplay.anchors_;
-           
+/*            
             // Force plane conformance to common spec (almost latest spec).
             planes && planes.forEach(function (plane) {
               // Force draft ARCore conformance to latest spec.
@@ -299,10 +325,10 @@ AFRAME.registerGeometry('polygon', {
               if (plane.rotation.y) { plane.rotation.y *= THREE.Math.RAD2DEG; }
               if (plane.rotation.z) { plane.rotation.z *= THREE.Math.RAD2DEG; }
             });
-
+*/
             var keys = Object.keys(sc.components['three-ar-planes'].planes);
             var msg = planes.length + ' (vs. ' + keys.length + ': ' + keys.join(',') + ')\n\n';
-           
+/*            
             planes.forEach(function (plane) {              
               // Write out what we got, for debugging.
               msg += 
@@ -313,7 +339,7 @@ AFRAME.registerGeometry('polygon', {
               (plane.vertices ? ('vertices: ' + plane.vertices.length + '\n') : '') + // number[3*n], per latest spec
               '';
             });
-            
+*/            
             showHUD(msg);
           }
         });
