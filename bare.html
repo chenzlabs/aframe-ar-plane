@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hello, World! • A-Frame three.ar.js</title>
+    <meta name="description" content="Hello, World! • A-Frame three.ar.js">
+    <script src="https://rawgit.com/chenzlabs/aframe/master/dist/aframe-master.min.js"></script>
+    <script src="https://rawgit.com/google-ar/three.ar.js/master/dist/three.ar.js"></script>
+    <script src="https://rawgit.com/chenzlabs/aframe-ar/experimental-planes/dist/aframe-ar.js"></script>
+    <script src="grid-shader.js"></script>
+  </head>
+  <body>    
+    <script>
+      AFRAME.registerComponent('thing', {
+        init: function () {
+          this.el.setAttribute('geometry', {primitive:'box', width:0.01, depth:0.01, height:1});
+          this.el.setAttribute('position', {y:0.5});
+        }
+      });            
+    </script>
+    
+    <script>
+AFRAME.registerGeometry('polygon', {
+  schema: {
+    stride: { default: 3 },
+    vertices: { default: [-1,1,0, -1,-1,0, 1,-1,0, 1,0.5,0] }
+  },
+  
+  init: function (data) {
+    var geometry = new THREE.Geometry();
+    var i;
+    for (i = 0; (i+2) < data.vertices.length; i += data.stride) {
+      geometry.vertices.push(new THREE.Vector3(data.vertices[i], data.vertices[i+1], data.vertices[i+2]));
+    }
+    geometry.computeBoundingBox();
+    // generate faces - this makes a triangle fan, from the first +Y point around
+    for (i = 0; i < geometry.vertices.length - 2; i++)
+    {
+      geometry.faces.push(new THREE.Face3(0, i + 1, i + 2));
+    }
+    geometry.mergeVertices();
+    geometry.computeFaceNormals();
+    geometry.computeVertexNormals();
+    this.geometry = geometry;
+  }
+});      
+    </script>
+    
+    <a-scene ar>
+      <!-- When we have a raycaster hit, we use this ball to show where. -->
+      <a-sphere id="ball" radius="0.01" position="0 0.005 -0.5"></a-sphere>
+
+      <a-camera>
+        <!-- A hit from AR, rather than A-Frame objects, hits this entity. -->
+        <a-entity id="ar-world"></a-entity>
+        
+        <!-- Declare a cursor, and what objects its raycaster hit (including AR). -->
+        <!-- NOTE: ar-raycaster VRHit uses a "tolerance" fudge factor, so imprecise -->
+        <a-entity cursor="fuse:false"
+                  raycaster="objects:.plane;recursive:false" 
+                  ar-raycaster="el:#ar-world"></a-entity>
+        
+        <!-- Separate the cursor appearance.-->
+        <a-entity position="0 0 -0.1"
+                  scale="0.001 0.001 0.001"
+                  geometry="primitive: ring; radiusInner: 0.8; radiusOuter: 1" 
+                  material="color: yellow; shader: flat; transparent:true"></a-entity>
+        
+        <!-- Heads-up text display. -->
+        <a-text id="hud" 
+                scale="0.01 0.01 0.01" position="0 -0.025 -0.1" 
+                color="yellow" align="center" 
+                value="Hi there"></a-text>
+      </a-camera>
+    </a-scene>    
+    
+    <script>
+      var sc = document.querySelector('a-scene');
+      function showHUD(msg) { sc.querySelector('#hud').setAttribute('value', msg); }
+      
+      var randomColors = ['red', 'orange', /* 'yellow', */ 'green', 'blue', 'violet'];
+        
+      var raycasterUpdateNeeded = false;
+      var raycasterInterval;
+      
+      function raycasterNeedsUpdate() {
+        raycasterUpdateNeeded = true;
+        if (!raycasterInterval) {
+          // NOTE: Assumes raycaster doesn't change.
+          var raycaster = sc.querySelector('[raycaster]').components.raycaster;          
+          raycasterInterval = setInterval(function() {
+            if (raycasterUpdateNeeded) {
+              raycaster.refreshObjects();                      
+              raycasterUpdateNeeded = false;
+            }
+          }, raycaster.interval);
+        }
+      }
+      
+      function onAddedOrUpdatedPlanes(evt) {
+        evt.detail.anchors.forEach(function (anchor) {
+          var created = false;
+          var colorToUse;
+          var plane = sc.querySelector('#plane_' + anchor.identifier);
+          if (!plane) {
+            // Create and append the plane.
+            created = true;
+            colorToUse = randomColors[Math.floor(Math.random() * randomColors.length)];
+            plane = document.createElement('a-box');
+            plane.setAttribute('id', 'plane_' + anchor.identifier);
+            plane.setAttribute('class', 'plane');
+            plane.setAttribute('height', 0.001);
+
+            plane.setAttribute('material', 'shader:grid;interval:0.1;side:double;opacity:0.5;color:' + colorToUse);
+
+            sc.appendChild(plane);
+
+            plane.insertAdjacentHTML('beforeend',                   
+/*                                     
+              // Add a plane label (which needs to be rotated to match a-box).
+              '<a-entity class="label" rotation="-90 0 0"></a-entity>' +             
+*/              
+              // Add bounding box.
+              '<a-box class="bbox" position="0 0 0" height="0" material="wireframe:true;opacity:0.5;color:' + colorToUse + '"></a-box>' +
+              // Add a thing to mark the center of the plane.
+              '<a-entity thing></a-entity>');
+
+            plane.tempPosition = new THREE.Vector3();
+            plane.tempQuaternion = new THREE.Quaternion();
+            plane.tempEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+            plane.tempRotation = new THREE.Vector3();            
+          } else {
+            colorToUse = plane.getAttribute('material', 'color');
+          }
+
+          // Update the plane.
+          var dx = anchor.extent[0];
+          var dz = anchor.extent[1];
+          plane.tempPosition.fromArray(anchor.position);
+          plane.tempQuaternion.fromArray(anchor.orientation);
+          plane.tempEuler.setFromQuaternion(plane.tempQuaternion);
+          plane.tempRotation.set(
+            plane.tempEuler.x * THREE.Math.RAD2DEG,
+            plane.tempEuler.y * THREE.Math.RAD2DEG,
+            plane.tempEuler.z * THREE.Math.RAD2DEG);
+          plane.setAttribute('position', plane.tempPosition);
+          plane.setAttribute('rotation', plane.tempRotation);
+          // Currently, scale is always 1... 
+          // plane.setAttribute('scale', evt.detail.scale);
+
+          // If we have vertices, use polygon geometry
+          if (anchor.vertices) {
+            // fails... perhaps it can't handle Float32Array?
+            //plane.setAttribute('geometry', {primitive:'polygon', vertices: evt.detail.vertices});
+            plane.setAttribute('geometry', 'primitive:polygon; vertices:' + anchor.vertices.join(','));
+          } else {
+            plane.setAttribute('geometry', 'primitive:box; width:' + dx +
+                                           '; height:0.001; depth:' + dz);                    
+          }
+
+          // Update the bounding box.
+          var bbox = plane.querySelector('.bbox');
+          bbox.setAttribute('width', dx);
+          bbox.setAttribute('depth', dz);
+/*  
+          // Fill out the plane label with informative text.
+          // DETAIL: when creating, getAttribute doesn't work this tick
+          plane.querySelector('.label').setAttribute('text', {
+           width: dx, 
+           height: dz, 
+           color: 'gray',
+           align: 'left',
+           zOffset: 0.01,
+           wrapCount: 100, value: 
+            'id: ' + anchor.identifier
+          + '\nwidth: ' + dx
+          + '\ndepth: ' + dz
+          + '\nposition x: ' + plane.tempPosition.x
+          + '\nposition y: ' + plane.tempPosition.y
+          + '\nposition z: ' + plane.tempPosition.z
+          + '\nrotation x: ' + plane.tempRotation.x
+          + '\nrotation y: ' + plane.tempRotation.y
+          + '\nrotation z: ' + plane.tempRotation.z
+          // Currently, scale is always 1... 
+          //+ '\nscale x: ' + plane.getAttribute('scale').x
+          //+ '\nscale y: ' + plane.getAttribute('scale').y
+          //+ '\nscale z: ' + plane.getAttribute('scale').z
+          });
+*/          
+          // We updated the plane (or added it), so update the raycaster.
+          // Because there may be a DOM change, we need to wait a tick.
+          if (created) { setTimeout(raycasterNeedsUpdate); } else { raycasterNeedsUpdate(); }
+          
+          return plane;
+        });                  
+      }
+      
+      function onRemovedPlanes(evt) {
+        evt.detail.anchors.forEach(function (anchor) {
+          var plane = sc.querySelector('#plane_' + anchor.identifier);
+          if (plane && plane.parentElement) {
+            plane.parentElement.removeChild(plane);
+          }          
+        });
+      }            
+      
+      function addPlaneListeners() {
+        sc.addEventListener('anchorsAdded', onAddedOrUpdatedPlanes);
+        sc.addEventListener('anchorsUpdated', onAddedOrUpdatedPlanes);
+        sc.addEventListener('anchorsRemoved', onRemovedPlanes);
+      }
+      
+      function addARRaycasterListeners() {
+        var raycaster = sc.querySelector('[ar-raycaster]');
+        // Note, -intersection is what the raycaster gets; the hit object gets -intersected.
+        raycaster.addEventListener('raycaster-intersection', function (evt) {
+          // Use first hit (which should be nearest).
+          var point = evt.detail.intersections[0].point;
+          var distance = evt.detail.intersections[0].distance;
+          var el = evt.detail.els[0];
+          showHUD('raycaster-intersection ' + distance + '\n' + JSON.stringify(point) + '\n' + el.id /*el.outerHTML*/);
+          if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 1.0); }
+          ball.setAttribute('position', point);
+          ball.setAttribute('visible', true);
+        });
+        raycaster.addEventListener('raycaster-intersection-cleared', function (evt) {
+          var el = evt.detail.el;
+          showHUD('raycaster-intersection-cleared\n' + el.outerHTML);
+          if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 0.5); }
+          ball.setAttribute('visible', false);
+        });
+      }
+      
+      function addEventListeners() {
+        addARRaycasterListeners();
+        addPlaneListeners();
+      }      
+      
+      function onSceneLoaded() { 
+        var tempScale = new THREE.Vector3();
+        var tempMat4 = new THREE.Matrix4();
+        
+        window.addEventListener('click', function() {
+          // If the cursor has an intersection, place a marker.
+          var cursor = sc.querySelector('[ar-raycaster]').components.cursor;
+          if (cursor.intersection) {
+            var marker = document.createElement('a-box');
+            marker.setAttribute('width', 0.01);
+            marker.setAttribute('depth', 0.01);
+            marker.setAttribute('height', 1);
+            marker.setAttribute('color', 'orange');
+            marker.setAttribute('position', {
+              x: cursor.intersection.point.x, 
+              y: cursor.intersection.point.y + 0.5, 
+              z: cursor.intersection.point.z});
+            sc.appendChild(marker);
+/*            
+            var cursorworldpos = new THREE.Vector3();
+            cursor.el.object3D.getWorldPosition(cursorworldpos);
+            
+            marker = document.createElement('a-box');
+            marker.setAttribute('width', 0.01);
+            marker.setAttribute('depth', 0.01);
+            marker.setAttribute('height', 1);
+            marker.setAttribute('color', 'green');
+            marker.setAttribute('position', {
+              x: cursor.intersection.point.x + cursorworldpos.x, 
+              y: cursor.intersection.point.y + cursorworldpos.y + 0.5, 
+              z: cursor.intersection.point.z + cursorworldpos.z });
+            sc.appendChild(marker);
+            
+            marker = document.createElement('a-box');
+            marker.setAttribute('width', 0.01);
+            marker.setAttribute('depth', 0.01);
+            marker.setAttribute('height', 1);
+            marker.setAttribute('color', 'red');
+            marker.setAttribute('position', {
+              x: cursor.intersection.point.x - cursorworldpos.x, 
+              y: cursor.intersection.point.y - cursorworldpos.y + 0.5, 
+              z: cursor.intersection.point.z - cursorworldpos.z });
+            sc.appendChild(marker);
+*/            
+          }
+          
+          // Show plane info on click.
+          // (may not have arDisplay until tick after loaded)
+          var ardisplay = sc.components['three-ar'].arDisplay;
+          if (!ardisplay) { showHUD('no ardisplay?'); } else {
+            var planes = ardisplay.getPlanes ? ardisplay.getPlanes() : ardisplay.anchors_;
+/*            
+            // Force plane conformance to common spec (almost latest spec).
+            planes && planes.forEach(function (plane) {
+              // Force draft ARCore conformance to latest spec.
+              if (!plane.identifier) { plane.identifier = plane.id; }
+              if (plane.polygon) { plane.vertices = plane.polygon; }
+              
+              // Unify position and orientation into vector3 and quaternion.                                      
+              // Compute unification (since we have to assume it may be updated.)
+              // Note that although it is possible to construct the arrays for
+              // position and orientation from transform, it's not worth it,
+              // since we will want to use vector3 and quaternion anyway.
+              if (!plane.vector3) { plane.vector3 = new THREE.Vector3(); }
+              if (!plane.quaternion) { plane.quaternion = new THREE.Quaternion(); }
+              if (!plane.rotation) { plane.rotation = new THREE.Euler(0,0,0,'YXZ'); }
+              if (plane.transform) { 
+                // ARKit                
+                tempMat4.fromArray(plane.transform);
+                tempMat4.decompose(plane.vector3, plane.quaternion, tempScale);
+              } else {
+                // ARCore
+                plane.vector3.fromArray(plane.position);
+                plane.quaternion.fromArray(plane.orientation);
+              }
+              plane.rotation.setFromQuaternion(plane.quaternion);
+              
+              if (navigator.userAgent.indexOf('Android') >= 0) {
+                // HACK for current draft APK -- Z->Y, Y->X, X->Z...
+                var temp = plane.rotation.x;
+                plane.rotation.y = plane.rotation.z;
+                plane.rotation.z = plane.rotation.x;
+                plane.rotation.x = temp;
+              }
+              
+              if (plane.rotation.x) { plane.rotation.x *= THREE.Math.RAD2DEG; }
+              if (plane.rotation.y) { plane.rotation.y *= THREE.Math.RAD2DEG; }
+              if (plane.rotation.z) { plane.rotation.z *= THREE.Math.RAD2DEG; }
+            });
+*/
+            var keys = Object.keys(sc.components['three-ar-planes'].planes);
+            var msg = planes.length + ' (vs. ' + keys.length + ': ' + keys.join(',') + ')\n\n';
+/*            
+            planes.forEach(function (plane) {              
+              // Write out what we got, for debugging.
+              msg += 
+              'identifier: ' + plane.identifier + '' + // string, per latest spec
+              ' ' + JSON.stringify(plane.vector3) + '' + // unified to THREE.Vector3
+              ' ' + JSON.stringify(plane.rotation) + '' + // unified to THREE.Quaternion
+              ' ' + plane.extent + '\n' + // number[2], per latest spec
+              (plane.vertices ? ('vertices: ' + plane.vertices.length + '\n') : '') + // number[3*n], per latest spec
+              '';
+            });
+*/            
+            showHUD(msg);
+          }
+        });
+        
+        addEventListeners();
+      }
+      
+      if (sc.hasLoaded) { onSceneLoaded(); }
+      else { sc.addEventListener('loaded', onSceneLoaded); }
+    </script>
+  </body>
+</html>
