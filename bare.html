@@ -100,6 +100,9 @@ AFRAME.registerGeometry('polygon', {
         }
       }
       
+      var tempMat4 = new THREE.Matrix4();
+      var tempScale = new THREE.Vector3();      
+      
       function onAddedOrUpdatedPlanes(evt) {
         evt.detail.anchors.forEach(function (anchor) {
           var created = false;
@@ -139,8 +142,8 @@ AFRAME.registerGeometry('polygon', {
           // Update the plane.
           var dx = anchor.extent[0];
           var dz = anchor.extent[1];
-          plane.tempPosition.fromArray(anchor.position);
-          plane.tempQuaternion.fromArray(anchor.orientation);
+          tempMat4.fromArray(anchor.modelMatrix);
+          tempMat4.decompose(plane.tempPosition, plane.tempQuaternion, tempScale);
           plane.tempEuler.setFromQuaternion(plane.tempQuaternion);
           plane.tempRotation.set(
             plane.tempEuler.x * THREE.Math.RAD2DEG,
@@ -208,9 +211,9 @@ AFRAME.registerGeometry('polygon', {
       }            
       
       function addPlaneListeners() {
-        sc.addEventListener('anchorsAdded', onAddedOrUpdatedPlanes);
-        sc.addEventListener('anchorsUpdated', onAddedOrUpdatedPlanes);
-        sc.addEventListener('anchorsRemoved', onRemovedPlanes);
+        sc.addEventListener('anchorsadded', onAddedOrUpdatedPlanes);
+        sc.addEventListener('anchorsupdated', onAddedOrUpdatedPlanes);
+        sc.addEventListener('anchorsremoved', onRemovedPlanes);
       }
       
       function addARRaycasterListeners() {
