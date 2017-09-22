@@ -157,9 +157,7 @@ AFRAME.registerGeometry('polygon', {
 
           // If we have vertices, use polygon geometry
           if (anchor.vertices) {
-            // fails... perhaps it can't handle Float32Array?
-            //plane.setAttribute('geometry', {primitive:'polygon', vertices: evt.detail.vertices});
-            plane.setAttribute('geometry', 'primitive:polygon; vertices:' + anchor.vertices.join(','));
+            plane.setAttribute('geometry', {primitive:'polygon', vertices: anchor.vertices});
           } else {
             plane.setAttribute('geometry', 'primitive:box; width:' + dx +
                                            '; height:0.001; depth:' + dz);                    
