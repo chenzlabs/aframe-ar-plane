@@ -157,7 +157,8 @@ AFRAME.registerGeometry('polygon', {
 
           // If we have vertices, use polygon geometry
           if (anchor.vertices) {
-            plane.setAttribute('geometry', {primitive:'polygon', vertices: anchor.vertices});
+            // anchor.vertices works for latest ARKit but not for latest ARCore; Float32Array issue?
+            plane.setAttribute('geometry', {primitive:'polygon', vertices: anchor.vertices.join(',')});
           } else {
             plane.setAttribute('geometry', 'primitive:box; width:' + dx +
                                            '; height:0.001; depth:' + dz);                    
