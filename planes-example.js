@@ -30,10 +30,9 @@ function onAddedOrUpdatedPlanes(evt) {
       // Create and append the plane.
       created = true;
       colorToUse = randomColors[Math.floor(Math.random() * randomColors.length)];
-      plane = document.createElement('a-box');
+      plane = document.createElement('a-entity');
       plane.setAttribute('id', 'plane_' + anchor.identifier);
       plane.setAttribute('class', 'plane');
-      plane.setAttribute('height', 0.001);
 
       plane.setAttribute('material', 'shader:grid;interval:0.1;side:double;opacity:0.5;color:' + colorToUse);
 
