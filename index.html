@@ -122,7 +122,7 @@
             // Old versions of WebARonARKit don't expose getPlanes() correctly.
             var planes = ardisplay.getPlanes ? ardisplay.getPlanes() : ardisplay.anchors_;
 
-            var keys = Object.keys(sc.components['three-ar-planes'].planes);
+            var keys = Object.keys(sc.components['ar-planes'].planes);
             var msg = planes.length + ' (vs. ' + keys.length + ': ' + keys.join(',') + ')\n\n';
 /*           
             planes.forEach(function (plane) {
