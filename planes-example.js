@@ -44,7 +44,8 @@ function onAddedOrUpdatedPlanes(evt) {
         '<a-entity class="label" rotation="-90 0 0"></a-entity>' +             
 
         // Add bounding box.
-        '<a-box class="bbox" position="0 0 0" height="0" material="wireframe:true;opacity:0.5;color:' + colorToUse + '"></a-box>' +
+// NOTE: for A-Frame 0.8.x, using zero height results in the default value of 1 unit                               
+        '<a-box class="bbox" position="0 0 0" height="0.001" material="wireframe:true;opacity:0.5;color:' + colorToUse + '"></a-box>' +
         // Add a thing to mark the center of the plane.
         '<a-entity thing></a-entity>');
 
