@@ -5,12 +5,16 @@
     <title>aframe-ar-plane</title>
     <meta name="description" content="aframe-ar-plane">
     <!-- First, include whichever version of A-Frame you like. -->
-    <script src="https://aframe.io/releases/0.7.1/aframe.min.js"></script>    
     <!-- Next, include three.ar.js; add the speech recognition polyfill if you want. -->
-    <script src="https://rawgit.com/google-ar/three.ar.js/f9603ee/dist/three.ar.js"></script>
     <!-- Last, include aframe-ar. -->
-    <script src="https://rawgit.com/chenzlabs/aframe-ar/cd0d71b/dist/aframe-ar.min.js"></script>    
-    <!-- Include XZ grid shader. -->
+<!-- Old versions that go with A-Frame 0.7.1
+    <script src="https://aframe.io/releases/0.7.1/aframe.min.js"></script>    
+    <script src="https://rawgit.com/google-ar/three.ar.js/f9603ee/dist/three.ar.js"></script>
+<!-- Master versions -->   
+    <script src="https://rawgit.com/aframevr/aframe/master/dist/aframe-master.min.js"></script>    
+    <script src="https://rawgit.com/google-ar/three.ar.js/master/dist/three.ar.min.js"></script>
+<!-- -->
+    <script src="https://rawgit.com/chenzlabs/aframe-ar/master/dist/aframe-ar.min.js"></script>    
     <script src="grid-shader.js"></script>
 
     <!-- Include polygon component. -->
@@ -30,6 +34,43 @@
       });            
     </script>    
 
+    <script>
+/////////////////////////////////////////////////////////////////////////////////////////
+// NOTE: for A-Frame 0.8.x, we need to listen for cursor intersection changes separately
+//        
+      AFRAME.registerComponent('track-cursor-intersection', {
+        init: function () {
+          this.point = new THREE.Vector3();
+        },
+        
+        tick: function (t, dt) {
+          // NOTE: not throttled to raycaster checkIntersections interval!
+          var cursor = this.el.components.cursor;
+          var raycaster = this.el.components.raycaster;
+          var newIntersection;
+          // NOTE: A-Frame 0.7.1 (which doesn't need this) does not have raycaster.intersections
+          if (cursor && raycaster && raycaster.intersections) {
+            newIntersection = raycaster.intersections.length ? raycaster.intersections[0] : undefined;
+            // NOTE: the intersections are always different (!) so check object
+            if ((cursor.intersection && cursor.intersection.object) !== (newIntersection && newIntersection.object)) {
+              // new cursor intersection object
+              cursor.intersection = newIntersection;              
+              this.el.emit('cursor-intersection-changed', cursor.intersection, false);
+            } else
+            if (newIntersection && !newIntersection.point.equals(cursor.intersection.point)) {
+              // new cursor intersection point
+              cursor.intersection.point.copy(newIntersection.point);
+              this.el.emit('cursor-intersection-changed', newIntersection, false);
+            } else {
+              // same or no cursor intersection point
+            }
+          }
+        }
+      });            
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+    </script>    
+    
     <!-- Include planes handling example code. -->
     <script src="planes-example.js"></script>        
 
@@ -44,7 +85,7 @@
         
         <!-- Declare a cursor, and what objects its raycaster hit (including AR). -->
         <!-- NOTE: ar-raycaster VRHit uses a "tolerance" fudge factor, so imprecise -->
-        <a-entity cursor="fuse:false"
+        <a-entity cursor="fuse:false" track-cursor-intersection
                   raycaster="objects:.plane;recursive:false" 
                   ar-raycaster="el:#ar-world"></a-entity>
         
@@ -64,6 +105,7 @@
     
     <script>
       var sc = document.querySelector('a-scene');
+      var ball = document.querySelector('#ball');
       function showHUD(msg) { sc.querySelector('#hud').setAttribute('value', msg); }
       
       function addARRaycasterListeners() {
@@ -80,11 +122,33 @@
           ball.setAttribute('visible', true);
         });
         raycaster.addEventListener('raycaster-intersection-cleared', function (evt) {
-          var el = evt.detail.el;
+///////////////////////////////////////////////////////////////////////////////////
+// NOTE: for A-Frame 0.8.x, only one event with all cleared elements in clearedEls
+//          
+          var el = evt.detail.el || evt.detail.clearedEls[0];
+//          
+///////////////////////////////////////////////////////////////////////////////////
           showHUD('raycaster-intersection-cleared\n' + el.outerHTML);
           if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 0.5); }
           ball.setAttribute('visible', false);
         });
+/////////////////////////////////////////////////////////////////////////////////////////
+// NOTE: for A-Frame 0.8.x, we need to listen for cursor intersection changes separately
+//        
+        raycaster.addEventListener('cursor-intersection-changed', function (evt) {
+          if (evt.detail) {
+            // Use provided hit.
+            var point = evt.detail.point;
+            var distance = evt.detail.distance;
+            var el = evt.detail.object.el;
+            showHUD('cursor-intersection-changed ' + distance + '\n' + JSON.stringify(point) + '\n' + el.id /*el.outerHTML*/);
+            if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 1.0); }
+            ball.setAttribute('position', point);
+            ball.setAttribute('visible', true);
+          }
+        });
+//
+/////////////////////////////////////////////////////////////////////////////////////////
       }
       
       function addEventListeners() {
@@ -99,7 +163,14 @@
         var tempEuler = new THREE.Euler(0, 0, 0, 'YXZ');
         var tempMat4 = new THREE.Matrix4();
         
-        window.addEventListener('click', function() {
+/////////////////////////////////////////////////////////////////////////////////////////
+// NOTE: first surprise with master, we never get window click anymore? worked around.
+// NOTE: second surprise with master, we have no cursor intersection... fixed!
+//        
+        window.addEventListener('touchstart'/*'click'*/, function() {
+//          
+/////////////////////////////////////////////////////////////////////////////////////////
+
           // If the cursor has an intersection, place a marker.
           var cursor = sc.querySelector('[ar-raycaster]').components.cursor;
           if (cursor.intersection) {
