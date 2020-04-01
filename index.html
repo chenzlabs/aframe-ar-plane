@@ -5,16 +5,11 @@
     <title>aframe-ar-plane</title>
     <meta name="description" content="aframe-ar-plane">
     <!-- First, include whichever version of A-Frame you like. -->
-    <!-- Next, include three.ar.js; add the speech recognition polyfill if you want. -->
+    <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@master/dist/aframe-master.min.js"></script>    
     <!-- Last, include aframe-ar. -->
-<!-- Old versions that go with A-Frame 0.7.1
-    <script src="https://aframe.io/releases/0.7.1/aframe.min.js"></script>    
-    <script src="https://rawgit.com/google-ar/three.ar.js/f9603ee/dist/three.ar.js"></script>
-<!-- Master versions -->   
-    <script src="https://rawgit.com/aframevr/aframe/master/dist/aframe-master.min.js"></script>    
-    <script src="https://rawgit.com/google-ar/three.ar.js/master/dist/three.ar.min.js"></script>
-<!-- -->
-    <script src="https://rawgit.com/chenzlabs/aframe-ar/master/dist/aframe-ar.min.js"></script>    
+    <script src="https://cdn.jsdelivr.net/gh/chenzlabs/aframe-ar@aframe-1.0.x/dist/aframe-ar.js"></script>    
+    
+    <!-- Include grid shader. -->
     <script src="grid-shader.js"></script>
 
     <!-- Include polygon component. -->
@@ -75,7 +70,7 @@
     <script src="planes-example.js"></script>        
 
     <!-- Our scene uses the ar component. -->
-    <a-scene ar>
+    <a-scene ar="worldSensing:true">
       <!-- When we have a raycaster hit, we use this ball to show where. -->
       <a-sphere id="ball" radius="0.01" position="0 0.005 -0.5"></a-sphere>
 
@@ -122,14 +117,12 @@
           ball.setAttribute('visible', true);
         });
         raycaster.addEventListener('raycaster-intersection-cleared', function (evt) {
-///////////////////////////////////////////////////////////////////////////////////
-// NOTE: for A-Frame 0.8.x, only one event with all cleared elements in clearedEls
-//          
-          var el = evt.detail.el || evt.detail.clearedEls[0];
-//          
-///////////////////////////////////////////////////////////////////////////////////
-          showHUD('raycaster-intersection-cleared\n' + el.outerHTML);
-          if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 0.5); }
+          var clearedEls = evt.detail.clearedEls;
+          showHUD('raycaster-intersection-cleared\n');// + el.outerHTML);
+          for (var i=0; i<clearedEls.length; i++) {
+            var el = clearedEls[i];
+            if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 0.5); }
+          }
           ball.setAttribute('visible', false);
         });
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -187,33 +180,27 @@
           }
           
           // Show plane info on click.
-          // (may not have arDisplay until tick after loaded)
-          var ardisplay = sc.components['three-ar'].arDisplay;
-          if (!ardisplay) { showHUD('no ardisplay?'); } else {
-            // Old versions of WebARonARKit don't expose getPlanes() correctly.
-            var planes = ardisplay.getPlanes ? ardisplay.getPlanes() : ardisplay.anchors_;
+          var planes = sc.components['ar-planes'].getPlanes();
+          var keys = Object.keys(planes);
+          var msg = '(' + keys.length + ': ' + keys.join(',') + ')\n\n';
+          
+          planes.forEach(function (plane) {
+            // Decompose into pos / quat / scale, and make euler.
+            tempMat4.fromArray(plane.modelMatrix);
+            tempMat4.decompose(tempPos, tempQuat, tempScale);
+            tempEuler.setFromQuaternion(tempQuat);
 
-            var keys = Object.keys(sc.components['ar-planes'].planes);
-            var msg = planes.length + ' (vs. ' + keys.length + ': ' + keys.join(',') + ')\n\n';
-/*           
-            planes.forEach(function (plane) {
-              // Decompose into pos / quat / scale, and make euler.
-              tempMat4.fromArray(plane.modelMatrix);
-              tempMat4.decompose(tempPos, tempQuat, tempScale);
-              tempEuler.setFromQuaternion(tempQuat);
-
-              // Write out what we got, for debugging.
-              msg += 
-              'identifier: ' + plane.identifier + '' + // string, per latest spec
-              ' ' + JSON.stringify(tempPos) + ''
-              ' ' + JSON.stringify(tempEuler.toVector3().multiplyScalar(THREE.Math.RAD2DEG)) + '' + 
-              ' ' + plane.extent + '\n' + // number[2], per latest spec
-              (plane.vertices ? ('vertices: ' + plane.vertices.length + '\n') : '') + // number[3*n], per latest spec
-              '';
-            });
-*/            
-            showHUD(msg);
-          }
+            // Write out what we got, for debugging.
+            msg += 
+            '\nidentifier: ' + plane.id + // string, per latest spec
+            ' ' + JSON.stringify(tempPos) +
+            ' ' + plane.extent + '\n' + // number[2], per latest spec
+            ' ' + JSON.stringify(tempEuler.toVector3().multiplyScalar(THREE.Math.RAD2DEG)) +
+            (plane.vertices ? (' vertices: ' + plane.vertices.length) : '') + // number[3*n], per latest spec
+            '\n';
+          });
+          
+          showHUD(msg);
         });
         
         addEventListeners();
