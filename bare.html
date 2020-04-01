@@ -5,11 +5,9 @@
     <title>aframe-ar-plane</title>
     <meta name="description" content="aframe-ar-plane">
     <!-- First, include whichever version of A-Frame you like. -->
-    <script src="https://rawgit.com/aframevr/aframe/master/dist/aframe-master.min.js"></script>
-    <!-- Next, include three.ar.js; add the speech recognition polyfill if you want. -->
-    <script src="https://rawgit.com/google-ar/three.ar.js/master/dist/three.ar.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@master/dist/aframe-master.min.js"></script>    
     <!-- Last, include aframe-ar. -->
-    <script src="https://rawgit.com/chenzlabs/aframe-ar/47aa7fa/dist/aframe-ar.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/chenzlabs/aframe-ar@aframe-1.0.x/dist/aframe-ar.js"></script>    
     
     <!-- Include XZ grid shader. -->
     <script src="grid-shader.js"></script>
@@ -19,6 +17,44 @@
         
     <!-- Prevent touch causing flicker on iOS. -->
     <style> * { -webkit-tap-highlight-color: rgba(0,0,0,0); } </style>    
+    
+    <script>
+      
+/////////////////////////////////////////////////////////////////////////////////////////
+// NOTE: for A-Frame 0.8.x, we need to listen for cursor intersection changes separately
+//        
+      AFRAME.registerComponent('track-cursor-intersection', {
+        init: function () {
+          this.point = new THREE.Vector3();
+        },
+        
+        tick: function (t, dt) {
+          // NOTE: not throttled to raycaster checkIntersections interval!
+          var cursor = this.el.components.cursor;
+          var raycaster = this.el.components.raycaster;
+          var newIntersection;
+          // NOTE: A-Frame 0.7.1 (which doesn't need this) does not have raycaster.intersections
+          if (cursor && raycaster && raycaster.intersections) {
+            newIntersection = raycaster.intersections.length ? raycaster.intersections[0] : undefined;
+            // NOTE: the intersections are always different (!) so check object
+            if ((cursor.intersection && cursor.intersection.object) !== (newIntersection && newIntersection.object)) {
+              // new cursor intersection object
+              cursor.intersection = newIntersection;              
+              this.el.emit('cursor-intersection-changed', cursor.intersection, false);
+            } else
+            if (newIntersection && !newIntersection.point.equals(cursor.intersection.point)) {
+              // new cursor intersection point
+              cursor.intersection.point.copy(newIntersection.point);
+              this.el.emit('cursor-intersection-changed', newIntersection, false);
+            } else {
+              // same or no cursor intersection point
+            }
+          }
+        }
+      });            
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+    </script>    
   </head>
   <body>    
     <!-- This is the thing we stick in the middle of planes we detect. -->
@@ -28,11 +64,11 @@
           this.el.setAttribute('geometry', {primitive:'box', width:0.01, depth:0.01, height:1});
           this.el.setAttribute('position', {y:0.5});
         }
-      });            
+      });
     </script>    
 
     <!-- Our scene uses the ar component. -->
-    <a-scene ar>
+    <a-scene ar="worldSensing:true" raycaster-move="target:#ball">
       <!-- When we have a raycaster hit, we use this ball to show where. -->
       <a-sphere id="ball" radius="0.01" position="0 0.005 -0.5"></a-sphere>
 
@@ -42,7 +78,7 @@
         
         <!-- Declare a cursor, and what objects its raycaster hit (including AR). -->
         <!-- NOTE: ar-raycaster VRHit uses a "tolerance" fudge factor, so imprecise -->
-        <a-entity cursor="fuse:false"
+        <a-entity cursor="fuse:false" track-cursor-intersection
                   raycaster="objects:.plane;recursive:false" 
                   ar-raycaster="el:#ar-world"></a-entity>
         
@@ -110,7 +146,7 @@
               '<a-entity class="label" rotation="-90 0 0"></a-entity>' +             
 */              
               // Add bounding box.
-              '<a-box class="bbox" position="0 0 0" height="0" material="wireframe:true;opacity:0.5;color:' + colorToUse + '"></a-box>' +
+              '<a-box class="bbox" position="0 0 0" material="wireframe:true;opacity:0.5;color:' + colorToUse + '"></a-box>' +
               // Add a thing to mark the center of the plane.
               '<a-entity thing></a-entity>');
 
@@ -135,8 +171,8 @@
             plane.tempEuler.z * THREE.Math.RAD2DEG);
           plane.setAttribute('position', plane.tempPosition);
           plane.setAttribute('rotation', plane.tempRotation);
-          // Currently, scale is always 1... 
-          // plane.setAttribute('scale', evt.detail.scale);
+          // Currently, scale is always almost exactly 1... 
+          // plane.setAttribute('scale', tempScale);
 
           // If we have vertices, use polygon geometry
           if (anchor.vertices) {
@@ -149,8 +185,16 @@
 
           // Update the bounding box.
           var bbox = plane.querySelector('.bbox');
-          bbox.setAttribute('width', dx);
-          bbox.setAttribute('depth', dz);
+          if (anchor.alignment) {
+            // TODO: fix if vertical          
+            bbox.setAttribute('width', dx);
+            bbox.setAttribute('height', dz);
+            bbox.setAttribute('depth', 0.001);
+          } else {
+            bbox.setAttribute('width', dx);
+            bbox.setAttribute('height', 0.001);
+            bbox.setAttribute('depth', dz);
+          }
 /* 
           // Fill out the plane label with informative text.
           // DETAIL: when creating, getAttribute doesn't work this tick
@@ -170,7 +214,7 @@
           + '\nrotation x: ' + plane.tempRotation.x
           + '\nrotation y: ' + plane.tempRotation.y
           + '\nrotation z: ' + plane.tempRotation.z
-          // Currently, scale is always 1... 
+          // Currently, scale is always almost exactly 1... 
           //+ '\nscale x: ' + plane.getAttribute('scale').x
           //+ '\nscale y: ' + plane.getAttribute('scale').y
           //+ '\nscale z: ' + plane.getAttribute('scale').z
@@ -214,11 +258,31 @@
           ball.setAttribute('visible', true);
         });
         raycaster.addEventListener('raycaster-intersection-cleared', function (evt) {
-          var el = evt.detail.el;
-          showHUD('raycaster-intersection-cleared\n' + el.outerHTML);
-          if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 0.5); }
+          var clearedEls = evt.detail.clearedEls;
+          showHUD('raycaster-intersection-cleared\n');// + el.outerHTML);
+          for (var i=0; i<clearedEls.length; i++) {
+            var el = clearedEls[i];
+            if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 0.5); }
+          }
           ball.setAttribute('visible', false);
         });
+/////////////////////////////////////////////////////////////////////////////////////////
+// NOTE: for A-Frame 0.8.x, we need to listen for cursor intersection changes separately
+//        
+        raycaster.addEventListener('cursor-intersection-changed', function (evt) {
+          if (evt.detail) {
+            // Use provided hit.
+            var point = evt.detail.point;
+            var distance = evt.detail.distance;
+            var el = evt.detail.object.el;
+            showHUD('cursor-intersection-changed ' + distance + '\n' + JSON.stringify(point) + '\n' + el.id /*el.outerHTML*/);
+            if (el.getAttribute('class') === 'plane') { el.setAttribute('opacity', 1.0); }
+            ball.setAttribute('position', point);
+            ball.setAttribute('visible', true);
+          }
+        });
+//
+/////////////////////////////////////////////////////////////////////////////////////////
       }
       
       function addEventListeners() {
@@ -247,28 +311,22 @@
           }
           
           // Show plane info on click.
-          // (may not have arDisplay until tick after loaded)
-          var ardisplay = sc.components['three-ar'].arDisplay;
-          if (!ardisplay) { showHUD('no ardisplay?'); } else {
-            // Old versions of WebARonARKit don't expose getPlanes() correctly.
-            var planes = ardisplay.getPlanes ? ardisplay.getPlanes() : ardisplay.anchors_;
+          var planes = sc.components['ar-planes'].getPlanes();
+          var keys = Object.keys(planes);
+          var msg = '(' + keys.length + ': ' + keys.join(',') + ')\n\n';
+          planes.forEach(function (plane) {              
+            // Write out what we got, for debugging.
+            msg += 
+            'id: ' + plane.id + '' + // string, per latest spec
+            JSON.stringify(plane.center) + ' ' + // unified to THREE.Vector3
+            // TODO: get from matrix... JSON.stringify(plane.rotation) + '\n' +
+            plane.extent + '\n' + // number[2], per latest spec
+            (plane.alignment ? 'vertical' : 'horizontal') + ' ' +
+            (plane.vertices ? ('vertices: ' + plane.vertices.length + '\n') : '') + // number[3*n], per latest spec
+            '';
+          });
 
-            var keys = Object.keys(sc.components['three-ar-planes'].planes);
-            var msg = planes.length + ' (vs. ' + keys.length + ': ' + keys.join(',') + ')\n\n';
-/*           
-            planes.forEach(function (plane) {              
-              // Write out what we got, for debugging.
-              msg += 
-              'identifier: ' + plane.identifier + '' + // string, per latest spec
-              ' ' + JSON.stringify(plane.vector3) + '' + // unified to THREE.Vector3
-              ' ' + JSON.stringify(plane.rotation) + '' + // unified to THREE.Quaternion
-              ' ' + plane.extent + '\n' + // number[2], per latest spec
-              (plane.vertices ? ('vertices: ' + plane.vertices.length + '\n') : '') + // number[3*n], per latest spec
-              '';
-            });
-*/            
-            showHUD(msg);
-          }
+          showHUD(msg);
         });
         
         addEventListeners();
