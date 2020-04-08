@@ -7,7 +7,7 @@
     <!-- First, include whichever version of A-Frame you like. -->
 		<script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@e47f441/dist/aframe-master.min.js"></script>
     <!-- Last, include aframe-ar. -->
-    <script src="https://ghcdn.rawgit.org/chenzlabs/aframe-ar/v0.3.1/dist/aframe-ar.min.js"></script>
+    <script src="https://ghcdn.rawgit.org/chenzlabs/aframe-ar/3002159/dist/aframe-ar.min.js"></script>
     
     <!-- Include grid shader. -->
     <script src="grid-shader.js"></script>
@@ -181,25 +181,26 @@
           
           // Show plane info on click.
           var planes = sc.components['ar-planes'].getPlanes();
-          var keys = Object.keys(planes);
-          var msg = '(' + keys.length + ': ' + keys.join(',') + ')\n\n';
-          
-          planes.forEach(function (plane) {
-            // Decompose into pos / quat / scale, and make euler.
-            tempMat4.fromArray(plane.modelMatrix);
-            tempMat4.decompose(tempPos, tempQuat, tempScale);
-            tempEuler.setFromQuaternion(tempQuat);
+          if (planes) {
+            var keys = Object.keys(planes);
+            var msg = '(' + keys.length + ': ' + keys.join(',') + ')\n\n';
 
-            // Write out what we got, for debugging.
-            msg += 
-            '\nidentifier: ' + plane.id + // string, per latest spec
-            ' ' + JSON.stringify(tempPos) +
-            ' ' + plane.extent + '\n' + // number[2], per latest spec
-            ' ' + JSON.stringify(tempEuler.toVector3().multiplyScalar(THREE.Math.RAD2DEG)) +
-            (plane.vertices ? (' vertices: ' + plane.vertices.length) : '') + // number[3*n], per latest spec
-            '\n';
-          });
-          
+            planes.forEach(function (plane) {
+              // Decompose into pos / quat / scale, and make euler.
+              tempMat4.fromArray(plane.modelMatrix);
+              tempMat4.decompose(tempPos, tempQuat, tempScale);
+              tempEuler.setFromQuaternion(tempQuat);
+
+              // Write out what we got, for debugging.
+              msg += 
+              '\nidentifier: ' + plane.id + // string, per latest spec
+              ' ' + JSON.stringify(tempPos) +
+              ' ' + plane.extent + '\n' + // number[2], per latest spec
+              ' ' + JSON.stringify(tempEuler.toVector3().multiplyScalar(THREE.Math.RAD2DEG)) +
+              (plane.vertices ? (' vertices: ' + plane.vertices.length) : '') + // number[3*n], per latest spec
+              '\n';
+            });
+          }          
           showHUD(msg);
         });
         
