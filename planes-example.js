@@ -32,7 +32,7 @@ function onAddedOrUpdatedPlanes(evt) {
       plane = document.createElement('a-box');
       plane.setAttribute('id', 'plane_' + anchor.identifier);
       plane.setAttribute('class', 'plane');
-      plane.setAttribute('height', 0.001);
+      // gets rid of log spam... plane.setAttribute('height', 0.001);
 
       plane.setAttribute('material', 'shader:grid;interval:0.1;side:double;opacity:0.5;color:' + colorToUse);
 
